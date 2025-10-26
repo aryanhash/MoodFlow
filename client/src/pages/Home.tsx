@@ -1,79 +1,116 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import MoodCard from "@/components/MoodCard";
 import TaskCard from "@/components/TaskCard";
 import QuickActions from "@/components/QuickActions";
 import MoodDetectionModal from "@/components/MoodDetectionModal";
-import { MoodType, DifficultyType } from "@shared/schema";
-
-//todo: remove mock functionality
-const mockTasks = {
-  calm: [
-    { id: "1", title: "Morning meditation and journaling", duration: 15, difficulty: "easy" as DifficultyType, mood: "calm" },
-    { id: "2", title: "Review project documentation", duration: 30, difficulty: "medium" as DifficultyType, mood: "calm" },
-    { id: "3", title: "Email responses and admin tasks", duration: 20, difficulty: "easy" as DifficultyType, mood: "calm" },
-  ],
-  energized: [
-    { id: "4", title: "Tackle challenging coding problem", duration: 90, difficulty: "hard" as DifficultyType, mood: "energized" },
-    { id: "5", title: "Brainstorm new project ideas", duration: 45, difficulty: "medium" as DifficultyType, mood: "energized" },
-    { id: "6", title: "Team collaboration meeting", duration: 60, difficulty: "medium" as DifficultyType, mood: "energized" },
-  ],
-  stressed: [
-    { id: "7", title: "Simple file organization", duration: 15, difficulty: "easy" as DifficultyType, mood: "stressed" },
-    { id: "8", title: "Take a short walk outside", duration: 10, difficulty: "easy" as DifficultyType, mood: "stressed" },
-    { id: "9", title: "Listen to calming music", duration: 20, difficulty: "easy" as DifficultyType, mood: "stressed" },
-  ],
-  focused: [
-    { id: "10", title: "Deep work: Write report", duration: 120, difficulty: "hard" as DifficultyType, mood: "focused" },
-    { id: "11", title: "Code review and refactoring", duration: 60, difficulty: "medium" as DifficultyType, mood: "focused" },
-    { id: "12", title: "Strategic planning session", duration: 90, difficulty: "hard" as DifficultyType, mood: "focused" },
-  ],
-  neutral: [
-    { id: "13", title: "Routine tasks and follow-ups", duration: 30, difficulty: "medium" as DifficultyType, mood: "neutral" },
-    { id: "14", title: "Read industry articles", duration: 25, difficulty: "easy" as DifficultyType, mood: "neutral" },
-    { id: "15", title: "Update project tracker", duration: 15, difficulty: "easy" as DifficultyType, mood: "neutral" },
-  ],
-};
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { MoodType, DifficultyType, Task } from "@shared/schema";
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [mood, setMood] = useState<MoodType>("calm");
-  const [confidence, setConfidence] = useState(85);
+  const [mood, setMood] = useState<MoodType>("neutral");
+  const [confidence, setConfidence] = useState(0);
   const [showMoodModal, setShowMoodModal] = useState(false);
-  const [webcamConsent, setWebcamConsent] = useState(false);
-  const [tasks, setTasks] = useState(mockTasks[mood]);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   
+  // Fetch user settings
+  const { data: settings } = useQuery({
+    queryKey: ["/api/settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings?userId=default");
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      return res.json();
+    },
+  });
+  
+  // Fetch latest mood
+  const { data: latestMood } = useQuery({
+    queryKey: ["/api/mood/latest"],
+    queryFn: async () => {
+      const res = await fetch("/api/mood/latest?userId=default");
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to fetch mood");
+      return res.json();
+    },
+  });
+  
+  // Update local state when latest mood changes
+  useEffect(() => {
+    if (latestMood) {
+      setMood(latestMood.mood);
+      setConfidence(latestMood.confidence);
+    }
+  }, [latestMood]);
+  
+  // Fetch tasks based on mood
+  const { data: tasks = [], refetch: refetchTasks } = useQuery<Task[]>({
+    queryKey: ["/api/tasks", mood],
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks?mood=${mood}`);
+      if (!res.ok) throw new Error("Failed to fetch tasks");
+      return res.json();
+    },
+    enabled: !!mood,
+  });
+  
+  // Mood detection mutation
+  const detectMoodMutation = useMutation({
+    mutationFn: async ({ text, useWebcam }: { text: string; useWebcam: boolean }) => {
+      const res = await apiRequest("POST", "/api/mood/detect", { text, useWebcam, userId: "default" });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setMood(data.mood);
+      setConfidence(data.confidence);
+      queryClient.invalidateQueries({ queryKey: ["/api/mood/latest"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+  });
+  
+  // Task completion mutation
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/tasks/${id}`, { completed });
+      return res.json();
+    },
+  });
+  
   const handleMoodDetection = (text: string, useWebcam: boolean) => {
-    //todo: remove mock functionality - integrate with real sentiment analysis
-    const moods: MoodType[] = ["calm", "energized", "stressed", "focused", "neutral"];
-    const randomMood = moods[Math.floor(Math.random() * moods.length)];
-    const randomConfidence = Math.floor(Math.random() * 20) + 75;
-    
-    setMood(randomMood);
-    setConfidence(randomConfidence);
-    setTasks(mockTasks[randomMood]);
-    console.log("Mood detected:", { text, useWebcam, mood: randomMood, confidence: randomConfidence });
+    detectMoodMutation.mutate({ text, useWebcam });
   };
   
   const handleRegenerate = () => {
-    //todo: remove mock functionality - implement real task regeneration
-    const currentMoodTasks = [...mockTasks[mood]];
-    const shuffled = currentMoodTasks.sort(() => Math.random() - 0.5);
-    setTasks(shuffled);
-    console.log("Tasks regenerated");
+    refetchTasks();
   };
   
   const handleTaskToggle = (id: string) => {
+    const isCompleted = completedTasks.has(id);
+    const newCompleted = !isCompleted;
+    
     setCompletedTasks((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
+      if (newCompleted) {
         next.add(id);
+      } else {
+        next.delete(id);
       }
       return next;
     });
+    
+    updateTaskMutation.mutate({ id, completed: newCompleted });
+  };
+  
+  const getTimeAgo = (timestamp?: Date) => {
+    if (!timestamp) return "Never";
+    const date = new Date(timestamp);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return "Just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    return `${Math.floor(seconds / 86400)} days ago`;
   };
   
   return (
@@ -121,7 +158,11 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 space-y-6">
-            <MoodCard mood={mood} confidence={confidence} lastUpdated="2 mins ago" />
+            <MoodCard 
+              mood={mood} 
+              confidence={confidence} 
+              lastUpdated={getTimeAgo(latestMood?.timestamp)}
+            />
             <QuickActions
               onCheckMood={() => setShowMoodModal(true)}
               onRegenerate={handleRegenerate}
@@ -138,16 +179,25 @@ export default function Home() {
               </p>
             </div>
             
-            <div className="space-y-4">
-              {tasks.slice(0, 3).map((task) => (
-                <TaskCard
-                  key={task.id}
-                  {...task}
-                  completed={completedTasks.has(task.id)}
-                  onToggle={handleTaskToggle}
-                />
-              ))}
-            </div>
+            {tasks.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  No tasks available. Check your mood to get personalized recommendations.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {tasks.slice(0, 3).map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    {...task}
+                    difficulty={task.difficulty as DifficultyType}
+                    completed={completedTasks.has(task.id) || task.completed === 1}
+                    onToggle={handleTaskToggle}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -156,8 +206,8 @@ export default function Home() {
         open={showMoodModal}
         onClose={() => setShowMoodModal(false)}
         onDetect={handleMoodDetection}
-        webcamConsent={webcamConsent}
-        onWebcamConsentChange={setWebcamConsent}
+        webcamConsent={settings?.webcamConsent || false}
+        onWebcamConsentChange={() => {}}
       />
     </div>
   );

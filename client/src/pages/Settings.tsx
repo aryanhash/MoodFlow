@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Camera, Shield, Database } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,24 +20,64 @@ import {
 
 export default function Settings() {
   const [, setLocation] = useLocation();
+  const [showWebcamDialog, setShowWebcamDialog] = useState(false);
+  
+  // Fetch settings
+  const { data: settings } = useQuery({
+    queryKey: ["/api/settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings?userId=default");
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      return res.json();
+    },
+  });
+  
   const [webcamConsent, setWebcamConsent] = useState(false);
   const [localOnlyProcessing, setLocalOnlyProcessing] = useState(true);
   const [dataLogging, setDataLogging] = useState(true);
-  const [showWebcamDialog, setShowWebcamDialog] = useState(false);
+  
+  useEffect(() => {
+    if (settings) {
+      setWebcamConsent(settings.webcamConsent);
+      setLocalOnlyProcessing(settings.localOnlyProcessing);
+      setDataLogging(settings.dataLogging);
+    }
+  }, [settings]);
+  
+  // Update settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (updates: any) => {
+      const res = await apiRequest("PATCH", "/api/settings", { userId: "default", ...updates });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    },
+  });
   
   const handleWebcamToggle = (checked: boolean) => {
     if (checked) {
       setShowWebcamDialog(true);
     } else {
       setWebcamConsent(false);
-      console.log("Webcam consent revoked");
+      updateSettingsMutation.mutate({ webcamConsent: false });
     }
   };
   
   const handleWebcamConsent = () => {
     setWebcamConsent(true);
     setShowWebcamDialog(false);
-    console.log("Webcam consent granted");
+    updateSettingsMutation.mutate({ webcamConsent: true });
+  };
+  
+  const handleLocalProcessingToggle = (checked: boolean) => {
+    setLocalOnlyProcessing(checked);
+    updateSettingsMutation.mutate({ localOnlyProcessing: checked });
+  };
+  
+  const handleDataLoggingToggle = (checked: boolean) => {
+    setDataLogging(checked);
+    updateSettingsMutation.mutate({ dataLogging: checked });
   };
   
   return (
@@ -102,10 +144,7 @@ export default function Settings() {
                   <Switch
                     id="local-processing"
                     checked={localOnlyProcessing}
-                    onCheckedChange={(checked) => {
-                      setLocalOnlyProcessing(checked);
-                      console.log("Local-only processing:", checked);
-                    }}
+                    onCheckedChange={handleLocalProcessingToggle}
                     data-testid="switch-local-processing"
                   />
                 </div>
@@ -129,10 +168,7 @@ export default function Settings() {
                   <Switch
                     id="data-logging"
                     checked={dataLogging}
-                    onCheckedChange={(checked) => {
-                      setDataLogging(checked);
-                      console.log("Data logging:", checked);
-                    }}
+                    onCheckedChange={handleDataLoggingToggle}
                     data-testid="switch-data-logging"
                   />
                 </div>
