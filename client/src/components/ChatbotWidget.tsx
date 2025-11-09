@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageCircle, X, SendHorizonal, Loader2, ShieldAlert } from "lucide-react";
+import { MessageCircle, X, SendHorizontal, Loader2, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,16 +37,20 @@ interface ChatbotWidgetProps {
 
 const CHAT_STORAGE_KEY = "moodflow.chatHistory.v1";
 
-const createStarterMessages = (title: string, subtitle: string, language: string): ChatMessage[] => [
+const createStarterMessages = (
+  title: string,
+  subtitle: string,
+  language: string
+): ChatMessage[] => [
   {
-    id: `assistant-seed-1`,
+    id: "assistant-seed-1",
     role: "assistant",
     text: title,
     timestamp: new Date().toISOString(),
     language,
   },
   {
-    id: `assistant-seed-2`,
+    id: "assistant-seed-2",
     role: "assistant",
     text: subtitle,
     timestamp: new Date().toISOString(),
@@ -81,7 +85,7 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Load chat history on mount
+  /** Load chat history */
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CHAT_STORAGE_KEY);
@@ -93,45 +97,46 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
         }
       }
     } catch (error) {
-      console.warn("Unable to load chat history", error);
+      console.warn("Unable to load chat history:", error);
     }
+
     setMessages(
       createStarterMessages(
         t("chat.title", "MoodFlow AI Friend"),
         t("chat.subtitle", "Wellness Companion"),
-        language,
-      ),
+        language
+      )
     );
   }, [t, language]);
 
-  // Persist chat history
+  /** Persist chat history */
   useEffect(() => {
     try {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
     } catch (error) {
-      console.warn("Unable to persist chat history", error);
+      console.warn("Unable to persist chat history:", error);
     }
   }, [messages]);
 
-  // Auto-scroll to bottom on new message
+  /** Auto-scroll to bottom */
   useEffect(() => {
-    if (!listRef.current) return;
-    listRef.current.scrollTo({
-      top: listRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    if (listRef.current) {
+      listRef.current.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, [messages, isAssistantTyping]);
 
-  const placeholder = useMemo(() => {
-    if (!isOpen) return "";
-    return t("chat.placeholder", "Type how you're feeling...");
-  }, [isOpen, t]);
+  const placeholder = useMemo(
+    () => (isOpen ? t("chat.placeholder", "Type how you're feeling...") : ""),
+    [isOpen, t]
+  );
 
-  const addMessage = (message: ChatMessage) => {
+  const addMessage = (message: ChatMessage) =>
     setMessages((prev) => [...prev, message]);
-  };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || isAssistantTyping) return;
@@ -156,17 +161,19 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
         language,
         userId: "default",
       });
+
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+
       const data: EmpathyResponse = await res.json();
 
-      const assistantMessage: ChatMessage = {
+      addMessage({
         id: `assistant-${Date.now()}`,
         role: "assistant",
         text: data.message,
         timestamp: new Date().toISOString(),
         language: data.language,
         translatedFrom: data.translationApplied ? data.detectedLanguage ?? null : null,
-      };
-      addMessage(assistantMessage);
+      });
 
       if (data.peerSupportSuggested && !showPeerSuggestion) {
         setShowPeerSuggestion(true);
@@ -175,28 +182,22 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
           role: "assistant",
           text: t(
             "chat.peerSupportMessage",
-            "You’ve been facing a lot lately. Would it help to connect with someone who understands?",
+            "You’ve been facing a lot lately. Would it help to connect with someone who understands?"
           ),
           timestamp: new Date().toISOString(),
           language,
-          crisis: false,
         });
       }
 
-      if (data.helpline) {
-        setCrisisHelpline(data.helpline);
-      } else {
-        setCrisisHelpline(null);
-      }
-
-      if (data.crisisKeywords && data.crisisKeywords.length > 0) {
+      if (data.helpline) setCrisisHelpline(data.helpline);
+      if (data.crisisKeywords?.length) {
         setCrisisKeywords(data.crisisKeywords);
         addMessage({
           id: `assistant-crisis-${Date.now()}`,
           role: "assistant",
           text: t(
             "chat.crisisDetected",
-            "If you’re in immediate danger, please reach out to local emergency services.",
+            "If you’re in immediate danger, please reach out to local emergency services."
           ),
           timestamp: new Date().toISOString(),
           language,
@@ -204,16 +205,18 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
         });
       }
     } catch (error) {
-      console.error("Empathy chat error", error);
+      console.error("Empathy chat error:", error);
       toast({
         title: "Chat unavailable",
-        description: "I couldn’t reach the empathy companion. Please try again in a moment.",
+        description:
+          "I couldn’t reach the empathy companion. Please try again in a moment.",
         variant: "destructive",
       });
       addMessage({
         id: `assistant-fallback-${Date.now()}`,
         role: "assistant",
-        text: "I’m still here with you. Even when the tech hiccups, your feelings matter. 💜",
+        text:
+          "I’m still here with you. Even when the tech hiccups, your feelings matter. 💜",
         timestamp: new Date().toISOString(),
         language,
       });
@@ -224,6 +227,7 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
 
   return (
     <>
+      {/* Floating Button */}
       <Button
         size="lg"
         className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 shadow-2xl hover:from-purple-600 hover:to-blue-600"
@@ -243,10 +247,15 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
             className="fixed bottom-24 right-6 z-40 w-full max-w-sm"
           >
             <Card className="overflow-hidden border-2 border-purple-100 shadow-2xl">
+              {/* Header */}
               <div className="flex items-center justify-between bg-gradient-to-r from-purple-500 to-blue-500 px-4 py-3 text-white">
                 <div>
-                  <p className="text-sm uppercase tracking-wide opacity-80">{t("chat.subtitle", "Wellness Companion")}</p>
-                  <h3 className="text-base font-semibold">{t("chat.title", "MoodFlow AI Friend")}</h3>
+                  <p className="text-sm uppercase tracking-wide opacity-80">
+                    {t("chat.subtitle", "Wellness Companion")}
+                  </p>
+                  <h3 className="text-base font-semibold">
+                    {t("chat.title", "MoodFlow AI Friend")}
+                  </h3>
                 </div>
                 <Button
                   variant="ghost"
@@ -258,11 +267,17 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                 </Button>
               </div>
 
-              {crisisKeywords && crisisKeywords.length > 0 && (
+              {/* Crisis Warning */}
+              {crisisKeywords?.length ? (
                 <div className="flex items-start gap-3 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
                   <ShieldAlert className="mt-0.5 h-4 w-4" />
                   <div className="space-y-1">
-                    <p>{t("chat.crisisDetected", "If you’re in immediate danger, please reach out to local emergency services.")}</p>
+                    <p>
+                      {t(
+                        "chat.crisisDetected",
+                        "If you’re in immediate danger, please reach out to local emergency services."
+                      )}
+                    </p>
                     {crisisHelpline && (
                       <div className="text-[11px] font-normal text-red-800">
                         <p className="font-semibold">{crisisHelpline.name}</p>
@@ -281,8 +296,9 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
 
+              {/* Chat Log */}
               <div
                 ref={listRef}
                 className="max-h-80 overflow-y-auto bg-white px-4 py-3 space-y-3"
@@ -293,7 +309,10 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                 {messages.map((message) => {
                   const isUser = message.role === "user";
                   return (
-                    <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      key={message.id}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                    >
                       <div
                         className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
                           isUser
@@ -310,7 +329,7 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                             <span>
                               {t("chat.translatedFrom", "Translated from {language}").replace(
                                 "{language}",
-                                getLanguageName(message.translatedFrom),
+                                getLanguageName(message.translatedFrom)
                               )}
                             </span>
                           )}
@@ -330,10 +349,18 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                 )}
               </div>
 
+              {/* Peer Support Suggestion */}
               {showPeerSuggestion && (
                 <div className="space-y-2 border-t border-purple-100 bg-purple-50 px-4 py-3 text-xs text-purple-800">
-                  <p className="font-semibold">{t("chat.peerSupportTitle", "Care suggestion")}</p>
-                  <p>{t("chat.peerSupportMessage", "You’ve been facing a lot lately. Would it help to connect with someone who understands?")}</p>
+                  <p className="font-semibold">
+                    {t("chat.peerSupportTitle", "Care suggestion")}
+                  </p>
+                  <p>
+                    {t(
+                      "chat.peerSupportMessage",
+                      "You’ve been facing a lot lately. Would it help to connect with someone who understands?"
+                    )}
+                  </p>
                   <Button
                     size="sm"
                     variant="outline"
@@ -348,16 +375,24 @@ export default function ChatbotWidget({ onRequestPeerSupport }: ChatbotWidgetPro
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-purple-100 bg-white px-3 py-2">
+              {/* Input Form */}
+              <form
+                onSubmit={handleSubmit}
+                className="flex items-center gap-2 border-t border-purple-100 bg-white px-3 py-2"
+              >
                 <Input
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(e) => setInput(e.target.value)}
                   placeholder={placeholder}
                   className="text-sm"
                   disabled={isAssistantTyping}
                 />
                 <Button type="submit" size="icon" disabled={isAssistantTyping}>
-                  {isAssistantTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
+                  {isAssistantTyping ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SendHorizontal className="h-4 w-4" />
+                  )}
                 </Button>
               </form>
             </Card>
