@@ -4,11 +4,18 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
+    "dev:python": "cd python_backend && python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000",
+    "build:python": "vite build",
+    "start:python": "cd python_backend && python -m uvicorn main:app --host 0.0.0.0 --port 5000",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "install:python": "cd python_backend && pip install -r ../requirements.txt",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "docker:clean": "docker-compose down -v --rmi all",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

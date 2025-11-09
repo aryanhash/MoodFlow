@@ -1,0 +1,50 @@
+{
+  "name": "Peer Support Matching",
+  "description": "Stubbed peer support session with translation/transcript",
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/peers/match",
+        "json": {
+          "userId": "cli-demo",
+          "language": "es",
+          "mood": "stressed",
+          "experiences": ["burnout"]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "sessionId": { "type": "string" },
+          "match": {
+            "displayName": { "type": "string" }
+          }
+        }
+      },
+      "save": {
+        "sessionId": "body.sessionId"
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/peers/chat",
+        "json": {
+          "sessionId": "{{sessionId}}",
+          "message": "Gracias por escuchar, me siento agotado por mi trabajo",
+          "language": "es"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "sessionId": "{{sessionId}}",
+          "peerMessage": {
+            "language": "es"
+          }
+        }
+      }
+    }
+  ]
+}

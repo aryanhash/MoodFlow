@@ -1,0 +1,23 @@
+{
+  "name": "Crisis SMS Stub",
+  "description": "Demonstrates the SMS support stub",
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/support/sms",
+        "json": {
+          "phone": "+1-555-123-4567",
+          "message": "Requesting follow-up from MoodFlow",
+          "language": "en"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

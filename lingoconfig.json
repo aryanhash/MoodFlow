@@ -1,0 +1,9 @@
+{
+  "name": "MoodLiftMeals",
+  "baseUrl": "http://localhost:5000",
+  "scenariosDir": "lingo/scenarios",
+  "defaultHeaders": {
+    "Content-Type": "application/json"
+  },
+  "resources": []
+}

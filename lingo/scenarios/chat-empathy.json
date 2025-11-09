@@ -1,0 +1,25 @@
+{
+  "name": "Empathy Chat Companion",
+  "description": "Arabic user, localized GPT reply, crisis keyword detection",
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/chat/empathy",
+        "json": {
+          "userId": "cli-demo",
+          "language": "ar",
+          "message": "أشعر أن الحياة تصبح أصعب كل يوم ولا أستطيع المتابعة"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "language": "ar",
+          "crisisKeywords": { "length": { "gte": 1 } },
+          "peerSupportSuggested": true
+        }
+      }
+    }
+  ]
+}

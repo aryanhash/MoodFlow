@@ -1,0 +1,26 @@
+# Development Frontend Dockerfile
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY client/ ./client/
+COPY shared/ ./shared/
+COPY components.json ./
+COPY tailwind.config.ts ./
+COPY postcss.config.js ./
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+
+# Expose port
+EXPOSE 3000
+
+# Start development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -1,0 +1,35 @@
+{
+  "name": "Mood Voice Check-In",
+  "description": "Hindi voice transcription demo",
+  "env": {
+    "AUDIO_FIXTURE": "lingo/assets/voice-hindi.wav"
+  },
+  "steps": [
+    {
+      "note": "Read base64 audio fixture",
+      "script": "const fs = require('fs'); const audio = fs.readFileSync(process.env.AUDIO_FIXTURE).toString('base64'); state.audio = audio;"
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/mood/detect",
+        "json": {
+          "userId": "cli-demo",
+          "imageData": null,
+          "text": "",
+          "preferredLanguage": "hi",
+          "speechData": { "audio": "{{state.audio}}", "language": "auto" }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "mood": "stressed",
+          "crisis": {
+            "negativeMoodStreak": { "gte": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

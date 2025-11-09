@@ -1,0 +1,27 @@
+{
+  "name": "Mood Text Check-In",
+  "description": "Spanish text -> translation -> crisis detection + localized summary",
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/mood/detect",
+        "json": {
+          "userId": "cli-demo",
+          "text": "Me siento muy ansioso y con ganas de rendirme.",
+          "preferredLanguage": "es"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "mood": "stressed",
+          "crisis": {
+            "triggered": true
+          },
+          "localizedMessage": { "contains": "ansioso" }
+        }
+      }
+    }
+  ]
+}
